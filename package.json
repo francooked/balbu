@@ -15,9 +15,8 @@
 		"test:unit": "vitest",
 		"test": "npm run test:unit -- --run",
 		"docker:up": "docker compose up",
-		"worker:dev": "nodemon --watch src/worker.ts --ext ts --exec 'node --env-file=.env --import tsx src/worker.ts'",
 		"db:start": "docker compose up",
-		"db:recreate": "docker compose down -v && docker compose up -d db redis && until docker compose exec -T db pg_isready -U root -d local >/dev/null 2>&1; do sleep 1; done && until docker compose exec -T redis redis-cli --no-auth-warning -a mysecretpassword ping >/dev/null 2>&1; do sleep 1; done && node --env-file=.env node_modules/drizzle-kit/bin.cjs migrate",
+		"db:recreate": "docker compose down -v && docker compose up -d db && until docker compose exec -T db pg_isready -U root -d local >/dev/null 2>&1; do sleep 1; done && npx drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
@@ -56,13 +55,11 @@
 		"eslint-plugin-svelte": "^3.22.0",
 		"globals": "^17.8.0",
 		"melt": "^0.44.0",
-		"nodemon": "^3.1.14",
 		"playwright": "^1.62.1",
 		"postgres": "^3.4.9",
 		"prettier": "^3.9.6",
 		"prettier-plugin-svelte": "^3.5.2",
 		"prettier-plugin-tailwindcss": "^0.7.4",
-		"redis": "^5.12.1",
 		"svelte": "^5.56.8",
 		"svelte-check": "^4.7.4",
 		"tailwindcss": "^4.1.18",
@@ -71,22 +68,11 @@
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.65.0",
 		"vite": "^7.3.6",
-		"vite-node": "^6.0.0",
 		"vitest": "^4.1.0",
 		"vitest-browser-svelte": "^2.2.1",
-		"zod": "^4.4.3"
-	},
-	"dependencies": {
-		"@internationalized/date": "^3.12.0",
-		"dedent": "^1.7.2",
-		"diff": "^9.0.0",
-		"drizzle-seed": "^0.3.1",
-		"melt": "^0.44.0",
-		"openai": "^7.8.0",
+		"zod": "^4.4.3",
 		"promptfoo": "^0.122.2",
-		"redis": "^5.11.0",
-		"ts-fsrs": "^5.3.2",
-		"vite-node": "^6.0.0",
-		"zod": "^4.3.6"
-	}
+		"openai": "^7.8.0"
+	},
+	"dependencies": {}
 }

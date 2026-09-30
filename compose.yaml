@@ -10,16 +10,5 @@ services:
       POSTGRES_DB: local
     volumes:
       - pgdata:/var/lib/postgresql
-  redis:
-    image: redis
-    restart: always
-    ports:
-      - 6379:6379
-    environment:
-      REDIS_ARGS: --requirepass mysecretpassword --appendonly
-    volumes:
-      - redis-data:/data
 volumes:
   pgdata:
-  redis-data:
-    driver: local
