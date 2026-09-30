@@ -10,6 +10,7 @@ import { requireUserSession } from '$lib/server/session-user';
 import { processConversationTurn } from '$lib/server/chat-turn';
 import { normalizeText } from '$lib/correction/normalize-text';
 import { createFormResponders } from '$lib/forms/result.server';
+import { practiceContext } from '$lib/chat/presets/v1';
 import { START_CHAT_ID, startChatFailure, startChatSuccess } from '$lib/forms/start-chat';
 import { DELETE_CHAT_ID, deleteChatFailure, deleteChatSuccess } from '$lib/forms/delete-chat';
 
@@ -71,7 +72,8 @@ export const actions = {
 						kind: 'conversation',
 						targetLanguage: data.targetLanguage,
 						title: data.content.slice(0, 64),
-						userId: signedInUser.id
+						userId: signedInUser.id,
+						payload: { version: 1, payload: practiceContext }
 					})
 					.returning({ id: schema.chat.id })
 			).at(0);

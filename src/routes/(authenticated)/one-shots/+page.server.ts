@@ -12,6 +12,7 @@ import { normalizeText } from '$lib/correction/normalize-text';
 import { db } from '$lib/server/db';
 import * as schema from '$lib/server/db/schema';
 import { LANGUAGE_CODES } from '$lib/constants';
+import { oneShotContext } from '$lib/chat/presets/v1';
 import { processOneShot, retryCorrection } from '$lib/server/chat-turn';
 import { eq, and } from 'drizzle-orm';
 import { buildBlame } from '$lib/correction/build-blame';
@@ -150,7 +151,8 @@ export const actions = {
 						userId: signedInUser.id,
 						kind: 'one_shot',
 						targetLanguage: formDataParse.data.targetLanguage,
-						title: formDataParse.data.content.slice(0, 64)
+						title: formDataParse.data.content.slice(0, 64),
+						payload: { version: 1, payload: oneShotContext }
 					})
 					.returning({ id: schema.chat.id })
 			).at(0);

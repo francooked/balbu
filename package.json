@@ -25,7 +25,7 @@
 		"db:clear": "tsx --env-file=.env src/lib/server/db/seed/reset.ts",
 		"auth:schema": "npx auth@latest generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes",
 		"eval:correction": "promptfoo eval -c promptfoo/message-correction/promptfooconfig.yaml --env-file .env --delay 1024",
-		"eval:reply": "promptfoo eval -c promptfoo/conversation-reply/promptfooconfig.yaml --env-file .env --delay 1024",
+		"eval:chat-reply": "promptfoo eval -c promptfoo/chat-reply/promptfooconfig.yaml --env-file .env --delay 1024",
 		"eval:feedback": "promptfoo eval -c promptfoo/translation-feedback/promptfooconfig.yaml --env-file .env --delay 1024",
 		"eval:patterns": "promptfoo eval -c promptfoo/error-patterns/promptfooconfig.yaml --env-file .env --delay 1024",
 		"eval:view": "promptfoo view"

@@ -204,6 +204,13 @@
       "when": 1787943501528,
       "tag": "0028_serious_darkstar",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790740295799,
+      "tag": "0029_normal_the_fury",
+      "breakpoints": true
     }
   ]
 }

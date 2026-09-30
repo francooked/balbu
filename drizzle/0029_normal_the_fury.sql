@@ -1,0 +1,1 @@
+ALTER TABLE "chat" ADD COLUMN "payload" jsonb NOT NULL;

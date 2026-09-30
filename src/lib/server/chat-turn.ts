@@ -5,7 +5,7 @@ import {
 	buildPrompt as buildMessageReplyPrompt,
 	outputSchema as messageReplyOutputSchema,
 	responseFormat as messageReplyResponseFormat
-} from '$lib/prompts/conversation-reply';
+} from '$lib/prompts/chat-reply/v1/prompt';
 import {
 	buildPrompt as buildMessageCorrectionPrompt,
 	outputSchema as messageCorrectionOutputSchema,
@@ -13,10 +13,17 @@ import {
 } from '$lib/prompts/message-correction';
 import { retry } from './retry';
 import { openai, parseLlmResponse, LLM_MODEL } from './llm';
+import { chatPayloadSchema } from '$lib/chat/payload';
 
 /** Operational chat-turn failure. `code` is for logs; actions map any throw to `unexpected`. */
 export class ChatTurnError extends Error {
-	constructor(public code: 'chat_not_found' | 'messages_not_found' | 'persist_failed') {
+	constructor(
+		public code:
+			| 'chat_not_found'
+			| 'messages_not_found'
+			| 'persist_failed'
+			| 'unsupported_chat_payload_version'
+	) {
 		super(code);
 	}
 }
@@ -70,7 +77,8 @@ async function loadChat({ userId, chatId }: { userId: string; chatId: number }) 
 				userId: schema.user.id,
 				nativeLanguage: schema.user.nativeLanguage,
 				targetLanguage: schema.chat.targetLanguage,
-				kind: schema.chat.kind
+				kind: schema.chat.kind,
+				payload: schema.chat.payload
 			})
 			.from(schema.chat)
 			.innerJoin(schema.message, eq(schema.chat.id, schema.message.chatId))
@@ -124,12 +132,19 @@ async function replyUserMessage({
 	// Another task has already claimed this message.
 	if (!claimed) return;
 
+	const scene = chatPayloadSchema.parse(chat.payload);
+
+	if (scene.version !== 1) {
+		throw new ChatTurnError('unsupported_chat_payload_version');
+	}
+
 	const llmResponse = await retry({
 		fn: async () => {
 			const chatCompletion = await openai.chat.completions.create({
 				messages: buildMessageReplyPrompt({
 					nativeLanguage: chat.nativeLanguage,
 					targetLanguage: chat.targetLanguage,
+					context: scene.payload,
 					turns: messages
 						.filter((message) => message.id <= userMessage.id)
 						.map(({ role, content }) => ({ role, content }))

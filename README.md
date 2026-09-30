@@ -37,7 +37,7 @@ Promptfoo runs the real `buildPrompt` from `src/lib/prompts/` against OpenAI. Ca
 
 ```sh
 npm run eval:correction
-npm run eval:reply
+npm run eval:chat-reply
 npm run eval:feedback
 npm run eval:patterns
 npm run eval:view

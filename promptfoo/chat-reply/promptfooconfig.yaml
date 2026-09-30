@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+description: 'Chat reply'
+
+evaluateOptions:
+  maxConcurrency: 4
+
+prompts:
+  - file://prompt.ts
+
+providers:
+  - id: 'openai:{{ env.LLM_MODEL }}'
+    config:
+      max_completion_tokens: 2048
+      reasoning_effort: 'none'
+      temperature: 0.5
+
+defaultTest:
+  assert:
+    - type: javascript
+      value: 'typeof output.answer === "string" && output.answer.trim().length > 0 && typeof output.translation === "string" && output.translation.trim().length > 0'
+
+tests:
+  - description: 'es: practice chat closes with a question'
+    assert:
+      - type: javascript
+        value: 'output.answer.includes("?")'
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      context:
+        you: 'Eres un aprendiz. Hablas como tú mismo.'
+        partner: 'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        private: 'No tienes información ni una intención que el aprendiz desconozca.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
+      turns:
+        - role: user
+          content: Hi, I want to practice for my trip
+
+  - description: 'en: practice chat stays helpful when the user writes in Spanish'
+    assert:
+      - type: javascript
+        value: 'output.answer.includes("?")'
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      context:
+        you: 'Eres un aprendiz. Hablas como tú mismo.'
+        partner: 'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        private: 'No tienes información ni una intención que el aprendiz desconozca.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
+      turns:
+        - role: user
+          content: I like cooking on weekends
+        - role: assistant
+          content: What do you usually cook?
+        - role: user
+          content: Normalmente hago pasta o algo simple
+
+  - description: 'es: receptionist refuses a room and does not reveal the private scolding'
+    assert:
+      - type: javascript
+        value: '!/gerente|upgrade/i.test(output.answer + " " + output.translation)'
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      context:
+        you: 'Eres un huésped. Llegaste a las 23:00 sin reserva.'
+        partner: 'Eres la recepcionista. Estás cansada y hablas corto. Puedes negarte o cerrar sin hacer una pregunta. Si insisten, contestas igual, en personaje.'
+        shared: 'Están en la recepción del hotel. No quedan habitaciones.'
+        private: 'Tu turno termina en diez minutos. El gerente te retó hoy por regalar upgrades.'
+        want: 'Conseguir una habitación para esta noche.'
+      turns:
+        - role: user
+          content: Is there any room left? I can pay extra.
+
+  - description: 'en: clerk refuses the exchange and does not mention the pay cut'
+    assert:
+      - type: javascript
+        value: '!/jefe|boss|descont/i.test(output.answer + " " + output.translation)'
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      context:
+        you: 'Eres un cliente. Quieres devolver una camisa que compraste la semana pasada.'
+        partner: 'Eres el vendedor. Estás impaciente y hablas seco, con palabras simples. Puedes negarte. No hagas preguntas para alargar la conversación.'
+        shared: 'Están en el mostrador de una tienda. Hay cambios solo con boleta, y el cliente no la trae.'
+        private: 'Tu jefe te descontó el último cambio que aceptaste sin boleta.'
+        want: 'Que te cambien la camisa.'
+      turns:
+        - role: user
+          content: I lost the receipt, but the shirt does not fit
+
+  - description: 'es: barista takes a coffee order and does not mention the broken machine'
+    assert:
+      - type: javascript
+        value: '!/espresso|máquina|machine/i.test(output.answer + " " + output.translation)'
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      context:
+        you: 'Eres un cliente.'
+        partner: 'Eres el garzón. Hablas corto y amable. Preguntas lo justo para tomar el pedido.'
+        shared: 'Están en un café, por la mañana.'
+        private: 'La máquina de espresso está fallando. Solo lo dices si piden un espresso.'
+        want: 'Pedir algo para tomar.'
+      turns:
+        - role: user
+          content: A tea, please
+
+  - description: 'en: friend does not bring up the boss when nobody asked about the day'
+    assert:
+      - type: javascript
+        value: '!/jefe|boss/i.test(output.answer + " " + output.translation)'
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      context:
+        you: 'Estás en la casa de un amigo.'
+        partner: 'Eres su amigo. Tuviste un mal día y hablas corto, pero sigues la conversación.'
+        shared: 'Están en el living, de noche.'
+        private: 'Hoy el jefe te retó. Solo lo dices si te preguntan por tu día.'
+        want: 'Pasar un rato hablando.'
+      turns:
+        - role: user
+          content: Qué lindo está el clima hoy
