@@ -12,7 +12,14 @@ import {
 } from 'drizzle-orm/pg-core';
 import { isNull } from 'drizzle-orm';
 import { user } from './auth.schema';
-import { CHAT_KIND, LANGUAGE_CODES, MESSAGE_STATUS, ROLES, SRS_ALGORITHMS } from '$lib/constants';
+import {
+	CHAT_KIND,
+	LANGUAGE_CODES,
+	MESSAGE_STATUS,
+	PRESET_ORIGINS,
+	ROLES,
+	SRS_ALGORITHMS
+} from '$lib/constants';
 import type { ChatPayload } from '$lib/chat/payload';
 import type { ExercisePayload } from '$lib/exercise/exercise-payload';
 import type { ExerciseCheckPayload } from '$lib/exercise/exercise-check-payload';
@@ -23,6 +30,7 @@ export const messageRoleEnum = pgEnum('message_role', ROLES);
 export const messageStatusEnum = pgEnum('message_status', MESSAGE_STATUS);
 export const srsAlgorithmEnum = pgEnum('srs_algorithm', SRS_ALGORITHMS);
 export const chatKindEnum = pgEnum('chat_kind', CHAT_KIND);
+export const presetOriginEnum = pgEnum('preset_origin', PRESET_ORIGINS);
 
 export const userSrsProfile = pgTable('user_srs_profile', {
 	userId: text('user_id')
@@ -51,6 +59,22 @@ export const chat = pgTable(
 	},
 	(table) => [index('chat_userid_idx').on(table.userId)]
 );
+
+export const conversationPreset = pgTable('conversation_preset', {
+	id: serial('id').primaryKey(),
+	slug: text('slug').unique('conversationpreset_slug_uq'),
+	origin: presetOriginEnum('origin').notNull(),
+	kind: chatKindEnum('kind').notNull(),
+	name: text('name').notNull(),
+	briefing: text('briefing').notNull(),
+	context: jsonb('context').$type<ChatPayload>().notNull(),
+	authorId: text('author_id').references(() => user.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => new Date())
+		.notNull()
+});
 
 export const message = pgTable(
 	'message',
