@@ -12,7 +12,6 @@ import { normalizeText } from '$lib/correction/normalize-text';
 import { db } from '$lib/server/db';
 import * as schema from '$lib/server/db/schema';
 import { LANGUAGE_CODES } from '$lib/constants';
-import { oneShotContext } from '$lib/chat/presets/v1';
 import { processOneShot, retryCorrection } from '$lib/server/chat-turn';
 import { eq, and } from 'drizzle-orm';
 import { buildBlame } from '$lib/correction/build-blame';
@@ -143,6 +142,19 @@ export const actions = {
 			});
 		}
 
+		const oneShotPreset = (
+			await db
+				.select({ context: schema.conversationPreset.context })
+				.from(schema.conversationPreset)
+				.where(eq(schema.conversationPreset.slug, 'one_shot'))
+				.limit(1)
+		).at(0);
+
+		if (!oneShotPreset || oneShotPreset.context.version !== 1) {
+			console.error('Missing one-shot preset.');
+			return correctOneShotResponders.fail({ error: { code: 'unexpected' }, status: 500 });
+		}
+
 		const { chat, message } = await db.transaction(async (tx) => {
 			const chat = (
 				await tx
@@ -152,7 +164,7 @@ export const actions = {
 						kind: 'one_shot',
 						targetLanguage: formDataParse.data.targetLanguage,
 						title: formDataParse.data.content.slice(0, 64),
-						payload: { version: 1, payload: oneShotContext }
+						payload: oneShotPreset.context
 					})
 					.returning({ id: schema.chat.id })
 			).at(0);

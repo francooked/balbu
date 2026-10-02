@@ -1,5 +1,4 @@
 import { LANGUAGE_CODES } from '$lib/constants';
-import { practiceContext } from '$lib/chat/presets/v1';
 import dedent from 'dedent';
 import type {
 	ChatCompletionUserMessageParam,
@@ -19,6 +18,17 @@ import { contextSchema, type Context } from './context';
 
 // How many turns of context the partner sees. Enough to keep the thread, short enough to stay focused.
 const CONTEXT_TURNS = 9;
+
+/** Few-shot scene for a free chat. The catalog preset lives in the database. */
+const practiceContext = {
+	you: 'Eres un aprendiz. Hablas como tú mismo.',
+	partner:
+		'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.',
+	shared:
+		'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.',
+	private: 'No tienes información ni una intención que el aprendiz desconozca.',
+	want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
+} satisfies Context;
 
 const hotelContext = {
 	you: 'Eres un huésped. Llegaste a las 23:00 sin reserva.',

@@ -10,9 +10,9 @@ import { requireUserSession } from '$lib/server/session-user';
 import { processConversationTurn } from '$lib/server/chat-turn';
 import { normalizeText } from '$lib/correction/normalize-text';
 import { createFormResponders } from '$lib/forms/result.server';
-import { practiceContext } from '$lib/chat/presets/v1';
 import { START_CHAT_ID, startChatFailure, startChatSuccess } from '$lib/forms/start-chat';
 import { DELETE_CHAT_ID, deleteChatFailure, deleteChatSuccess } from '$lib/forms/delete-chat';
+import { contextSchema } from '$lib/prompts/chat-reply/v1/context';
 
 const startChatResponders = createFormResponders({
 	id: START_CHAT_ID,
@@ -34,8 +34,21 @@ export const load: PageServerLoad = async ({ locals }) => {
 		.select({ id: schema.chat.id, title: schema.chat.title })
 		.from(schema.chat)
 		.where(and(eq(schema.chat.userId, signedInUser.id), eq(schema.chat.kind, 'conversation')));
+	const conversationPresets = await db
+		.select({
+			id: schema.conversationPreset.id,
+			slug: schema.conversationPreset.slug,
+			origin: schema.conversationPreset.origin,
+			kind: schema.conversationPreset.kind,
+			name: schema.conversationPreset.name,
+			briefing: schema.conversationPreset.briefing,
+			context: schema.conversationPreset.context,
+			authorId: schema.conversationPreset.authorId
+		})
+		.from(schema.conversationPreset)
+		.where(eq(schema.conversationPreset.kind, 'conversation'));
 
-	return { chats };
+	return { chats, conversationPresets };
 };
 
 export const actions = {
@@ -54,11 +67,21 @@ export const actions = {
 				.enum(LANGUAGE_CODES)
 				.refine((code) => code !== signedInUser.nativeLanguage, {
 					error: 'You cannot chat in your native language'
-				})
+				}),
+			version: z.literal(1),
+			context: contextSchema
 		});
 		const { success, data } = zodSchema.safeParse({
 			content: formData.get('content')?.toString() ?? '',
-			targetLanguage: formData.get('target_language')?.toString() ?? ''
+			targetLanguage: formData.get('target_language')?.toString() ?? '',
+			version: parseInt(formData.get('version')?.toString() ?? '-1'),
+			context: {
+				you: formData.get('you')?.toString() ?? '',
+				partner: formData.get('partner')?.toString() ?? '',
+				shared: formData.get('shared')?.toString() ?? '',
+				private: formData.get('private')?.toString() ?? '',
+				want: formData.get('want')?.toString() ?? ''
+			}
 		});
 
 		if (!success)
@@ -73,7 +96,7 @@ export const actions = {
 						targetLanguage: data.targetLanguage,
 						title: data.content.slice(0, 64),
 						userId: signedInUser.id,
-						payload: { version: 1, payload: practiceContext }
+						payload: { version: data.version, payload: data.context }
 					})
 					.returning({ id: schema.chat.id })
 			).at(0);
