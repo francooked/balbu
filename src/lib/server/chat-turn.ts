@@ -1,6 +1,6 @@
 import * as schema from '$lib/server/db/schema';
 import { db } from '$lib/server/db';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, isNull } from 'drizzle-orm';
 import {
 	buildPrompt as buildMessageReplyPrompt,
 	outputSchema as messageReplyOutputSchema,
@@ -11,6 +11,12 @@ import {
 	outputSchema as messageCorrectionOutputSchema,
 	responseFormat as messageCorrectionResponseFormat
 } from '$lib/prompts/message-correction';
+import {
+	bindAssignment,
+	buildPrompt as buildErrorIdentityPrompt,
+	outputSchema as errorIdentityOutputSchema,
+	responseFormat as errorIdentityResponseFormat
+} from '$lib/prompts/error-identity';
 import { retry } from './retry';
 import { openai, parseLlmResponse, LLM_MODEL } from './llm';
 import { chatPayloadSchema } from '$lib/chat/payload';
@@ -169,6 +175,64 @@ async function replyUserMessage({
 		.where(and(eq(schema.message.chatId, chat.id), eq(schema.message.id, assistantMessage.id)));
 }
 
+/** Classifies each correction step into an existing identity or a new one. Nothing is written. */
+async function classifyCorrectionSteps({
+	userId,
+	nativeLanguage,
+	targetLanguage,
+	original,
+	steps
+}: {
+	userId: string;
+	nativeLanguage: (typeof schema.user.$inferSelect)['nativeLanguage'];
+	targetLanguage: (typeof schema.chat.$inferSelect)['targetLanguage'];
+	original: string;
+	steps: { sentence: string; reason: string }[];
+}) {
+	const identities = await db
+		.select({
+			id: schema.errorIdentity.id,
+			appliesWhen: schema.errorIdentity.appliesWhen
+		})
+		.from(schema.errorIdentity)
+		.where(
+			and(
+				eq(schema.errorIdentity.userId, userId),
+				eq(schema.errorIdentity.targetLanguage, targetLanguage),
+				isNull(schema.errorIdentity.archivedAt)
+			)
+		)
+		.orderBy(schema.errorIdentity.id);
+
+	const classifiedSteps = steps.map((step, index) => {
+		const before = index === 0 ? original : steps[index - 1]?.sentence;
+		if (!before) throw new Error('missing previous correction step');
+
+		return { index, before, after: step.sentence, reason: step.reason };
+	});
+
+	const input = { nativeLanguage, targetLanguage, identities, steps: classifiedSteps };
+
+	return retry({
+		fn: async () => {
+			const chatCompletion = await openai.chat.completions.create({
+				messages: buildErrorIdentityPrompt(input),
+				response_format: errorIdentityResponseFormat,
+				model: LLM_MODEL,
+				reasoning_effort: 'low',
+				max_completion_tokens: 2048
+			});
+
+			const output = parseLlmResponse(
+				chatCompletion.choices.at(0)?.message.content,
+				errorIdentityOutputSchema
+			);
+
+			return bindAssignment(input, output);
+		}
+	});
+}
+
 async function correctUserMessage({
 	chat,
 	messages,
@@ -224,24 +288,73 @@ async function correctUserMessage({
 		return;
 	}
 
+	// Identities are resolved before the write. A rewrite cannot be stored without one.
+	const assignment = await classifyCorrectionSteps({
+		userId: chat.userId,
+		nativeLanguage: chat.nativeLanguage,
+		targetLanguage: chat.targetLanguage,
+		original: userMessage.content,
+		steps: llmResponse.steps
+	});
+
 	await db.transaction(async (tx) => {
+		// Insert in order so createdIndex matches the row just stored.
+		const createdIds: number[] = [];
+
+		for (const created of assignment.created) {
+			const identity = (
+				await tx
+					.insert(schema.errorIdentity)
+					.values({
+						userId: chat.userId,
+						targetLanguage: chat.targetLanguage,
+						label: created.label,
+						appliesWhen: created.appliesWhen
+					})
+					.returning({ id: schema.errorIdentity.id })
+			).at(0);
+
+			if (!identity) throw new ChatTurnError('persist_failed');
+			createdIds.push(identity.id);
+		}
+
+		const assignmentByIndex = new Map(assignment.assignments.map((item) => [item.index, item]));
+
 		const messageRewrites = await tx
 			.insert(schema.messageRewrite)
 			.values(
-				llmResponse.steps.map(({ sentence, reason }, index) => ({
-					messageId: userMessageId,
-					text: sentence,
-					index,
-					reason
-				}))
-			)
-			.returning({ id: schema.messageRewrite.id, text: schema.messageRewrite.text });
+				llmResponse.steps.map((step, index) => {
+					const item = assignmentByIndex.get(index);
+					if (!item) throw new ChatTurnError('persist_failed');
 
-		const lastMessageRewrite = messageRewrites.at(-1);
+					const errorIdentityId =
+						item.identityId !== null
+							? item.identityId
+							: item.createdIndex === null
+								? undefined
+								: createdIds[item.createdIndex];
+
+					if (errorIdentityId === undefined) throw new ChatTurnError('persist_failed');
+
+					return {
+						messageId: userMessageId,
+						text: step.sentence,
+						index,
+						reason: step.reason,
+						errorIdentityId
+					};
+				})
+			)
+			.returning({ id: schema.messageRewrite.id, index: schema.messageRewrite.index });
+
+		const lastMessageRewrite = messageRewrites.find(
+			(rewrite) => rewrite.index === llmResponse.steps.length - 1
+		);
 		if (!lastMessageRewrite) throw new ChatTurnError('persist_failed');
 
 		const front = userMessage.content;
-		const back = lastMessageRewrite.text;
+		const back = llmResponse.steps[llmResponse.steps.length - 1]?.sentence;
+		if (!back) throw new ChatTurnError('persist_failed');
 		const extra = llmResponse.translation;
 
 		const exercise = (

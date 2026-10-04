@@ -1,0 +1,180 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+description: 'Error identity'
+
+evaluateOptions:
+  maxConcurrency: 4
+
+prompts:
+  - file://prompt.ts
+
+providers:
+  - id: 'openai:{{ env.LLM_MODEL }}'
+    config:
+      max_completion_tokens: 2048
+      reasoning_effort: 'low'
+
+tests:
+  - description: 'en: inflected want still matches the existing identity'
+    assert:
+      - type: javascript
+        value: output.created.length === 0 && output.assignments.length === 1 && output.assignments[0].index === 0 && output.assignments[0].identityId === 4 && output.assignments[0].createdIndex === null
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities:
+        - id: 4
+          appliesWhen: 'Falta "to" entre "want", en cualquier forma, y el verbo que sigue.'
+      steps:
+        - index: 0
+          before: She wants visit tomorrow
+          after: She wants to visit tomorrow
+          reason: 'Después de "wants" el verbo lleva "to".'
+
+  - description: 'en: "want to going" is a different hole than missing "to"'
+    assert:
+      - type: javascript
+        value: output.assignments.length === 1 && output.assignments[0].identityId === null && output.created.length === 1 && output.created[0].appliesWhen.includes('"')
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities:
+        - id: 4
+          appliesWhen: 'Falta "to" entre "want", en cualquier forma, y el verbo que sigue.'
+      steps:
+        - index: 0
+          before: I want to going home
+          after: I want to go home
+          reason: 'Después de "to" el verbo va en forma base: "go".'
+
+  - description: 'en: third person on another verb matches the existing identity'
+    assert:
+      - type: javascript
+        value: output.created.length === 0 && output.assignments.length === 1 && output.assignments[0].identityId === 2 && output.assignments[0].createdIndex === null
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities:
+        - id: 2
+          appliesWhen: 'Con "he", "she" o "it", el presente no va en la forma base del verbo.'
+      steps:
+        - index: 0
+          before: She eat lunch at noon
+          after: She eats lunch at noon
+          reason: 'Con "she" el presente lleva "eats".'
+
+  - description: 'en: adjective order matches even though the same words moved'
+    assert:
+      - type: javascript
+        value: output.created.length === 0 && output.assignments.length === 1 && output.assignments[0].identityId === 11 && output.assignments[0].createdIndex === null
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities:
+        - id: 11
+          appliesWhen: 'El adjetivo va delante del sustantivo, no detrás.'
+      steps:
+        - index: 0
+          before: I bought a car red
+          after: I bought a red car
+          reason: 'En inglés el adjetivo va antes: "red car".'
+
+  - description: 'en: two steps with the same hole open one identity'
+    assert:
+      - type: javascript
+        value: output.created.length === 1 && output.assignments.length === 2 && output.assignments.every((assignment) => assignment.identityId === null && assignment.createdIndex === 0)
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities: []
+      steps:
+        - index: 0
+          before: We wanted visit but he wants stay
+          after: We wanted to visit but he wants stay
+          reason: 'Después de "wanted" el verbo lleva "to".'
+        - index: 1
+          before: We wanted to visit but he wants stay
+          after: We wanted to visit but he wants to stay
+          reason: 'Después de "wants" el verbo lleva "to".'
+
+  - description: 'en: tense and missing "to" in one message are two identities'
+    assert:
+      - type: javascript
+        value: output.created.length === 2 && output.assignments.length === 2 && output.assignments[0].identityId === null && output.assignments[1].identityId === null && output.assignments[0].createdIndex !== output.assignments[1].createdIndex
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities: []
+      steps:
+        - index: 0
+          before: Yesterday I go to school
+          after: Yesterday I went to school
+          reason: '"yesterday" pide pasado: "went".'
+        - index: 1
+          before: Yesterday I went to school and I want eat
+          after: Yesterday I went to school and I want to eat
+          reason: 'Después de "want" el verbo lleva "to".'
+
+  - description: 'en: the past identity is chosen and the want identity is not'
+    assert:
+      - type: javascript
+        value: output.created.length === 0 && output.assignments.length === 1 && output.assignments[0].identityId === 9 && output.assignments[0].createdIndex === null
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      identities:
+        - id: 4
+          appliesWhen: 'Falta "to" entre "want", en cualquier forma, y el verbo que sigue.'
+        - id: 9
+          appliesWhen: 'Si la frase sitúa el hecho en el pasado con "yesterday", el verbo no va en presente.'
+      steps:
+        - index: 0
+          before: Yesterday she leave early
+          after: Yesterday she left early
+          reason: '"yesterday" pide pasado: "left".'
+
+  - description: 'es: a different job still matches the ser/estar identity'
+    assert:
+      - type: javascript
+        value: output.created.length === 0 && output.assignments.length === 1 && output.assignments[0].identityId === 3 && output.assignments[0].createdIndex === null
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      identities:
+        - id: 3
+          appliesWhen: 'Para un oficio o una característica permanente se usa "ser", no "estar".'
+      steps:
+        - index: 0
+          before: Mi hermano está médico
+          after: Mi hermano es médico
+          reason: 'A job takes "ser": "es médico".'
+
+  - description: 'es: location "a" does not match the ser/estar identity'
+    assert:
+      - type: javascript
+        value: output.assignments.length === 1 && output.assignments[0].identityId === null && output.created.length === 1 && output.created[0].appliesWhen.includes('"')
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      identities:
+        - id: 3
+          appliesWhen: 'Para un oficio o una característica permanente se usa "ser", no "estar".'
+      steps:
+        - index: 0
+          before: Estoy a la oficina
+          after: Estoy en la oficina
+          reason: 'Being inside a place takes "en", not "a".'
+
+  - description: 'es: a masculine noun ending in -a opens one identity'
+    assert:
+      - type: javascript
+        value: output.created.length === 1 && output.assignments.length === 1 && output.assignments[0].identityId === null && output.assignments[0].createdIndex === 0 && output.created[0].appliesWhen.includes('"')
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      identities: []
+      steps:
+        - index: 0
+          before: Vi la problema ayer
+          after: Vi el problema ayer
+          reason: '"problema" is masculine, so the article is "el".'

@@ -28,6 +28,7 @@
 		"eval:chat-reply": "promptfoo eval -c promptfoo/chat-reply/promptfooconfig.yaml --env-file .env --delay 1024",
 		"eval:feedback": "promptfoo eval -c promptfoo/translation-feedback/promptfooconfig.yaml --env-file .env --delay 1024",
 		"eval:patterns": "promptfoo eval -c promptfoo/error-patterns/promptfooconfig.yaml --env-file .env --delay 1024",
+		"eval:identity": "promptfoo eval -c promptfoo/error-identity/promptfooconfig.yaml --env-file .env --delay 1024",
 		"eval:view": "promptfoo view"
 	},
 	"devDependencies": {

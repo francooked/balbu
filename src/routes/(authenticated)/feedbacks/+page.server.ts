@@ -3,7 +3,7 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import * as schema from '$lib/server/db/schema';
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, count, desc, eq, isNull, sql } from 'drizzle-orm';
 import { feedbackPayloadSchema } from '$lib/feedback/feedback-payload';
 import { parseExercisePayload } from '$lib/exercise/parse-exercise';
 import { retry } from '$lib/server/retry';
@@ -19,6 +19,8 @@ import {
 	giveFeedbackFailure,
 	giveFeedbackSuccess
 } from '$lib/forms/give-feedback';
+import { CalendarDate, today as intlToday } from '@internationalized/date';
+import type { PgColumn } from 'drizzle-orm/pg-core';
 
 const giveFeedback = createFormResponders({
 	id: GIVE_FEEDBACK_ID,
@@ -30,21 +32,111 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const signedInUser = requireUserSession(locals);
 	if (!signedInUser) return redirect(302, '/login');
 
-	const feedbacks = (
-		await db
-			.select({
-				id: schema.feedback.id,
-				createdAt: schema.feedback.createdAt,
-				payload: schema.feedback.payload
-			})
-			.from(schema.feedback)
-			.where(and(eq(schema.feedback.userId, signedInUser.id)))
-			.orderBy(desc(schema.feedback.createdAt))
-	).map(({ payload, ...rest }) => {
-		return { ...rest, payload: feedbackPayloadSchema.parse(payload) };
-	});
+	const today = intlToday(signedInUser.timeZone);
 
-	return { feedbacks };
+	const getIntervalCountSql = (field: PgColumn, from: CalendarDate, to?: CalendarDate) => {
+		if (to) {
+			return sql<number>`cast(count(*) filter (where ${field} >= ${from.toString()} and ${field} < ${to.toString()}) as int)`;
+		}
+		return sql<number>`cast(count(*) filter (where ${field} >= ${from.toString()}) as int)`;
+	};
+
+	const countMessageRewritesInInterval = (from: CalendarDate, to?: CalendarDate) =>
+		getIntervalCountSql(schema.messageRewrite.createdAt, from, to);
+
+	const sevenDaysAgo = today.subtract({ days: 7 });
+	const fourteenDaysAgo = today.subtract({ days: 14 });
+	const thirtyDaysAgo = today.subtract({ days: 30 });
+	const sixtyDaysAgo = today.subtract({ days: 60 });
+	const ninetyDaysAgo = today.subtract({ days: 90 });
+	const oneEightyDaysAgo = today.subtract({ days: 180 });
+	const threeSixtyDaysAgo = today.subtract({ days: 360 });
+
+	const errorIdentities = Array.from(
+		Map.groupBy(
+			await db
+				.select({
+					id: schema.errorIdentity.id,
+					targetLanguage: schema.errorIdentity.targetLanguage,
+					label: schema.errorIdentity.label,
+					currentWeekCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 7 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					previousWeekCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 14 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.messageRewrite.createdAt} < ${today.subtract({ days: 7 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					currentMonthCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 30 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					previousMonthCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 60 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.messageRewrite.createdAt} < ${today.subtract({ days: 30 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					currentQuarterCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 90 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					previousQuarterCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 180 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.messageRewrite.createdAt} < ${today.subtract({ days: 90 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					currentHalfYearCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 180 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+					previousHalfYearCount: sql<number>`cast(count(*) filter (where ${schema.messageRewrite.createdAt} >= ${today.subtract({ days: 360 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.messageRewrite.createdAt} < ${today.subtract({ days: 180 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`
+				})
+				.from(schema.errorIdentity)
+				.innerJoin(
+					schema.messageRewrite,
+					eq(schema.errorIdentity.id, schema.messageRewrite.errorIdentityId)
+				)
+				.where(
+					and(
+						eq(schema.errorIdentity.userId, signedInUser.id),
+						isNull(schema.errorIdentity.archivedAt)
+					)
+				)
+				.groupBy(schema.errorIdentity.id),
+			({ targetLanguage }) => targetLanguage
+		),
+		([_, records]) => {
+			const firstRecord = records.at(0);
+
+			// This should never happen, but just in case, throw an error.
+			if (!firstRecord) throw new Error('No record found');
+
+			return {
+				targetLanguage: firstRecord.targetLanguage,
+				errorIdentities: records.map(
+					({
+						id,
+						label,
+						currentWeekCount,
+						previousWeekCount,
+						currentMonthCount,
+						previousMonthCount,
+						currentQuarterCount,
+						previousQuarterCount,
+						currentHalfYearCount,
+						previousHalfYearCount
+					}) => ({
+						id,
+						label,
+						currentWeekCount,
+						previousWeekCount,
+						currentMonthCount,
+						previousMonthCount,
+						currentQuarterCount,
+						previousQuarterCount,
+						currentHalfYearCount,
+						previousHalfYearCount
+					})
+				)
+			};
+		}
+	);
+
+	const messages = await db
+		.select({
+			targetLanguage: schema.chat.targetLanguage,
+			currentWeekCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 7 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			previousWeekCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 14 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.message.createdAt} < ${today.subtract({ days: 7 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			currentMonthCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 30 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			previousMonthCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 60 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.message.createdAt} < ${today.subtract({ days: 30 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			currentQuarterCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 90 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			previousQuarterCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 180 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.message.createdAt} < ${today.subtract({ days: 90 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			currentHalfYearCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 180 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`,
+			previousHalfYearCount: sql<number>`cast(count(*) filter (where ${schema.message.createdAt} >= ${today.subtract({ days: 360 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz and ${schema.message.createdAt} < ${today.subtract({ days: 180 }).toDate(signedInUser.timeZone).toISOString()}::timestamptz) as int)`
+		})
+		.from(schema.message)
+		.innerJoin(schema.chat, eq(schema.message.chatId, schema.chat.id))
+		.where(and(eq(schema.chat.userId, signedInUser.id), eq(schema.message.role, 'user')))
+		.groupBy(schema.chat.targetLanguage);
+
+	return { errorIdentities, messages };
 };
 
 export const actions = {

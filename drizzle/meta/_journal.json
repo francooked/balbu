@@ -218,6 +218,13 @@
       "when": 1790899052322,
       "tag": "0030_parallel_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1791138717306,
+      "tag": "0031_faithful_namorita",
+      "breakpoints": true
     }
   ]
 }

@@ -92,6 +92,22 @@ export const message = pgTable(
 	(table) => [index('message_chatid_idx').on(table.chatId)]
 );
 
+export const errorIdentity = pgTable(
+	'error_identity',
+	{
+		id: serial('id').primaryKey(),
+		userId: text('user_id')
+			.references(() => user.id, { onDelete: 'cascade' })
+			.notNull(),
+		targetLanguage: languageCodeEnum('target_language').notNull(),
+		label: text('label').notNull(),
+		appliesWhen: text('applies_when').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		archivedAt: timestamp('archived_at')
+	},
+	(table) => [index('erroridentity_userid_language_idx').on(table.userId, table.targetLanguage)]
+);
+
 export const messageRewrite = pgTable(
 	'message_rewrite',
 	{
@@ -102,9 +118,17 @@ export const messageRewrite = pgTable(
 		text: text('text').notNull(),
 		index: integer('index').notNull(),
 		reason: text('reason').notNull(),
+		errorIdentityId: integer('error_identity_id')
+			.references(() => errorIdentity.id, {
+				onDelete: 'cascade'
+			})
+			.notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull()
 	},
-	(table) => [index('messagerewrite_messageid_idx').on(table.messageId)]
+	(table) => [
+		index('messagerewrite_messageid_idx').on(table.messageId),
+		index('messagerewrite_erroridentityid_idx').on(table.errorIdentityId)
+	]
 );
 
 export const exercise = pgTable(
