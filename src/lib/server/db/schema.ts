@@ -196,5 +196,33 @@ export const feedback = pgTable(
 	(table) => [index('feedback_userId_idx').on(table.userId)]
 );
 
+export const errorDiagnosis = pgTable('error_diagnosis', {
+	errorIdentityId: integer('error_identity_id')
+		.primaryKey()
+		.references(() => errorIdentity.id, {
+			onDelete: 'cascade'
+		})
+		.notNull(),
+	diagnosis: text('diagnosis').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull()
+});
+
+export const errorDiagnosisMessageRewrite = pgTable(
+	'error_diagnosis_message_rewrite',
+	{
+		errorIdentityId: integer('error_identity_id')
+			.references(() => errorDiagnosis.errorIdentityId, {
+				onDelete: 'cascade'
+			})
+			.notNull(),
+		messageRewriteId: integer('message_rewrite_id')
+			.references(() => messageRewrite.id, {
+				onDelete: 'cascade'
+			})
+			.notNull()
+	},
+	(table) => [primaryKey({ columns: [table.errorIdentityId, table.messageRewriteId] })]
+);
+
 export * from './auth.schema';
 export * from './fsrs.schema';

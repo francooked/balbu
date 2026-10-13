@@ -1,4 +1,12 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { createFormView } from '$lib/forms/create-form-view.svelte';
+	import {
+		GIVE_FEEDBACK_ID,
+		giveFeedbackFailure,
+		giveFeedbackSuccess
+	} from '$lib/forms/give-feedback';
 	import { LANGUAGE_CODE_LABELS } from '$lib/constants';
 	import type { PageProps } from './$types';
 
@@ -32,10 +40,26 @@
 	type Range = (typeof RANGES)[number];
 	type CountField = Range['current'] | Range['previous'];
 
-	const { data }: PageProps = $props();
+	const { data, form }: PageProps = $props();
+
+	const diagnose = createFormView({
+		id: GIVE_FEEDBACK_ID,
+		success: giveFeedbackSuccess,
+		failure: giveFeedbackFailure,
+		getForm: () => form
+	});
+
+	let submittedId = $state<number | null>(null);
+
+	/** Keeps loading and failure on the habit that was submitted. */
+	const trackDiagnose: SubmitFunction = (input) => {
+		submittedId = Number(input.formData.get('error_identity_id'));
+		return diagnose.enhance(input);
+	};
 
 	let rangeId = $state<Range['id']>('week');
 	const range = $derived(RANGES.find((item) => item.id === rangeId) ?? RANGES[0]);
+	let openReportIds = $state<number[]>([]);
 
 	const groups = $derived.by(() => {
 		return data.errorIdentities.flatMap((group) => {
@@ -50,6 +74,7 @@
 					return {
 						id: identity.id,
 						label: identity.label,
+						diagnosis: identity.diagnosis,
 						stepsNow,
 						stepsBefore,
 						detail: detailFor(stepsNow, stepsBefore, messagesNow, messagesBefore)
@@ -90,6 +115,13 @@
 		return `${times} en ${written}`;
 	}
 
+	/** Shows or hides the stored diagnosis for one habit. */
+	function toggleReport(id: number) {
+		openReportIds = openReportIds.includes(id)
+			? openReportIds.filter((openId) => openId !== id)
+			: [...openReportIds, id];
+	}
+
 	/** Word for the rate change. Null when this window has no messages to divide by. */
 	function markFor(
 		stepsNow: number,
@@ -127,6 +159,35 @@
 				<li>
 					<span class="label">{row.label}</span>
 					<span class="detail">{row.detail}</span>
+					<div class="actions">
+						{#if row.diagnosis}
+							<button
+								type="button"
+								class={{ open: openReportIds.includes(row.id) }}
+								aria-expanded={openReportIds.includes(row.id)}
+								onclick={() => toggleReport(row.id)}
+							>
+								Ver reporte
+							</button>
+							<span aria-hidden="true">·</span>
+						{/if}
+						<form method="post" action="?/diagnose" use:enhance={trackDiagnose}>
+							<button type="submit" disabled={diagnose.view.status === 'pending'}>
+								{diagnose.view.status === 'pending' && submittedId === row.id
+									? 'Cargando'
+									: row.diagnosis
+										? 'Regenerar reporte'
+										: 'Generar reporte'}
+							</button>
+							<input type="hidden" name="error_identity_id" value={row.id} />
+						</form>
+					</div>
+					{#if diagnose.view.status === 'failure' && submittedId === row.id}
+						<span class="detail">Error al generar el reporte</span>
+					{/if}
+					{#if row.diagnosis && openReportIds.includes(row.id)}
+						<span class="detail report">{row.diagnosis}</span>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -169,6 +230,36 @@
 		color: var(--muted);
 		font-size: 0.85rem;
 		margin-top: 0.15rem;
+	}
+
+	.actions {
+		margin-top: 0.15rem;
+		color: var(--muted);
+		font-size: 0.85rem;
+	}
+
+	.actions form {
+		display: inline;
+	}
+
+	.actions button {
+		background: none;
+		color: inherit;
+		border: none;
+		padding: 0;
+		font: inherit;
+		text-decoration: underline;
+		text-underline-offset: 0.18em;
+	}
+
+	.actions button:hover:not(:disabled),
+	.actions button.open {
+		color: var(--ink);
+		background: none;
+	}
+
+	.report {
+		margin-top: 0.4rem;
 	}
 
 	.empty {

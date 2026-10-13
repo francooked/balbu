@@ -225,6 +225,13 @@
       "when": 1791138717306,
       "tag": "0031_faithful_namorita",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791337737918,
+      "tag": "0032_rapid_norrin_radd",
+      "breakpoints": true
     }
   ]
 }

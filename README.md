@@ -41,6 +41,7 @@ npm run eval:chat-reply
 npm run eval:feedback
 npm run eval:patterns
 npm run eval:identity
+npm run eval:diagnosis
 npm run eval:view
 ```
 

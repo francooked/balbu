@@ -1,0 +1,130 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+
+description: 'Error diagnosis'
+
+evaluateOptions:
+  maxConcurrency: 4
+
+prompts:
+  - file://prompt.ts
+
+providers:
+  - id: 'openai:{{ env.LLM_MODEL }}'
+    config:
+      max_completion_tokens: 2048
+      reasoning_effort: 'low'
+
+tests:
+  - description: 'en: missing "to" after want comes from the Spanish calque'
+    assert:
+      - type: javascript
+        value: typeof output.diagnosis === 'string' && /quiero|querer/i.test(output.diagnosis)
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      label: 'Te comes el "to" después de "want"'
+      appliesWhen: 'Falta "to" entre "want", en cualquier forma, y el verbo que sigue.'
+      samples:
+        - text: I want go to the park
+          reason: 'Después de "want" el verbo lleva "to".'
+        - text: I want eat now
+          reason: 'Falta "to" después de "want".'
+        - text: She wants visit tomorrow
+          reason: 'Después de "wants" el verbo lleva "to".'
+        - text: They want leave early
+          reason: 'Después de "want" el verbo lleva "to".'
+
+  - description: 'en: another error in the same sentence stays out of the cause'
+    assert:
+      - type: javascript
+        value: typeof output.diagnosis === 'string' && /quiero|querer/i.test(output.diagnosis) && !/trabaj/i.test(output.diagnosis)
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      label: 'Te comes el "to" después de "want"'
+      appliesWhen: 'Falta "to" entre "want", en cualquier forma, y el verbo que sigue.'
+      samples:
+        - text: I want go and she work on Sundays
+          reason: 'Después de "want" el verbo lleva "to".'
+        - text: I want eat but he work at night
+          reason: 'Falta "to" después de "want".'
+        - text: We want stay and she work tomorrow
+          reason: 'Después de "want" el verbo lleva "to".'
+        - text: I want buy bread and he work here
+          reason: 'Falta "to" después de "want".'
+
+  - description: 'en: a doubled letter has no native sentence to name'
+    assert:
+      - type: javascript
+        value: output.diagnosis === null
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      label: 'Doblas una letra'
+      appliesWhen: 'Una palabra lleva una letra repetida que no va.'
+      samples:
+        - text: I reallly like coffee
+          reason: '"really" lleva dos eles, no tres.'
+        - text: The book is heere
+          reason: '"here" lleva una e, no dos.'
+        - text: She is comming later
+          reason: '"coming" lleva una eme, no dos.'
+        - text: Please stopp now
+          reason: '"stop" lleva una pe, no dos.'
+
+  - description: 'en: an adjective after the noun comes from Spanish word order'
+    assert:
+      - type: javascript
+        value: typeof output.diagnosis === 'string' && /rojo|adjetivo/i.test(output.diagnosis)
+    vars:
+      nativeLanguage: es
+      targetLanguage: en
+      label: 'Pones el adjetivo después del sustantivo'
+      appliesWhen: 'El adjetivo va detrás del sustantivo, no delante.'
+      samples:
+        - text: I bought a car red
+          reason: 'En inglés el adjetivo va antes: "red car".'
+        - text: She has a house big
+          reason: 'En inglés el adjetivo va antes: "big house".'
+        - text: We saw a dog small
+          reason: 'En inglés el adjetivo va antes: "small dog".'
+        - text: I want a coffee hot
+          reason: 'En inglés el adjetivo va antes: "hot coffee".'
+
+  - description: 'es: "estar" for a job comes from English "is"'
+    assert:
+      - type: javascript
+        value: typeof output.diagnosis === 'string' && /\bis\b/i.test(output.diagnosis)
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      label: 'You use "estar" for a job'
+      appliesWhen: 'Un oficio va con "estar" en vez de "ser".'
+      samples:
+        - text: Ella está abogada
+          reason: 'A job takes "ser": "es abogada".'
+        - text: Mi hermano está médico
+          reason: 'A job takes "ser": "es médico".'
+        - text: Soy Juan y ella está profesora
+          reason: 'A job takes "ser": "es profesora".'
+        - text: Mi padre está ingeniero
+          reason: 'A job takes "ser": "es ingeniero".'
+
+  - description: 'es: a doubled letter has no native sentence to name'
+    assert:
+      - type: javascript
+        value: output.diagnosis === null
+    vars:
+      nativeLanguage: en
+      targetLanguage: es
+      label: 'You double a letter'
+      appliesWhen: 'Una palabra lleva una letra repetida que no va.'
+      samples:
+        - text: La caasa es grande
+          reason: '"casa" has one s, not two.'
+        - text: Quiero caafé
+          reason: '"café" has one a, not two.'
+        - text: El perro es grandee
+          reason: '"grande" has one e at the end, not two.'
+        - text: Vive en la ciiudad
+          reason: '"ciudad" has one i, not two.'
