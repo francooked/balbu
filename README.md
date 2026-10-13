@@ -182,3 +182,4 @@ Por algún extraño motivo, la oración `quiero ir a donde sea` en el one-shot h
 4. Hace más sentido mostrar el `soundsLike` en los chats.
 5. No hay formas de incrementar el vocabulario del usuario. Si en un chat contextualizado quiere hablar de autos, sería ideal partir con un vocabulario adhoc.
 6. Las retroalimentaciones también podrían sugerir nuevas palabras a aprender o frases para ampliar el vocabulario.
+7. En las correcciones en sí es importante incluir un tono de la corrección, ya sea adhoc al contexto, o bien, complementario al contexto.
