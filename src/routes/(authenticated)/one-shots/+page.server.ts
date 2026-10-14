@@ -12,15 +12,10 @@ import { normalizeText } from '$lib/correction/normalize-text';
 import { db } from '$lib/server/db';
 import * as schema from '$lib/server/db/schema';
 import { LANGUAGE_CODES } from '$lib/constants';
-import { processOneShot, retryCorrection } from '$lib/server/chat-turn';
-import { eq, and } from 'drizzle-orm';
-import { buildBlame } from '$lib/correction/build-blame';
-import { traceRewriteHistory } from '$lib/correction/segments';
-import {
-	RETRY_ONE_SHOT_CORRECTION_ID,
-	retryOneShotCorrectionFailure,
-	retryOneShotCorrectionSuccess
-} from '$lib/forms/retry-one-shot-correction';
+import { processOneShot } from '$lib/server/chat-turn';
+import { and, eq } from 'drizzle-orm';
+import { DELETE_CHAT_ID, deleteChatFailure, deleteChatSuccess } from '$lib/forms/delete-chat';
+import { contextSchema } from '$lib/prompts/chat-reply/v1/context';
 
 const correctOneShotResponders = createFormResponders({
 	id: CORRECT_ONE_SHOT_ID,
@@ -28,79 +23,41 @@ const correctOneShotResponders = createFormResponders({
 	failure: correctOneShotFailure
 });
 
-const retryOneShotCorrectionResponders = createFormResponders({
-	id: RETRY_ONE_SHOT_CORRECTION_ID,
-	success: retryOneShotCorrectionSuccess,
-	failure: retryOneShotCorrectionFailure
+const deleteChatResponders = createFormResponders({
+	id: DELETE_CHAT_ID,
+	success: deleteChatSuccess,
+	failure: deleteChatFailure
 });
+
+/** Empty intention is the same as omitting it. */
+function optionalIntent(value: string | undefined) {
+	const normalized = normalizeText(value ?? '');
+	return normalized.length > 0 ? normalized : undefined;
+}
 
 export const load: PageServerLoad = async ({ locals }) => {
 	const signedInUser = requireUserSession(locals);
 	if (!signedInUser) return redirect(302, '/login');
 
-	const chats = Array.from(
-		Map.groupBy(
-			await db
-				.select({
-					id: schema.chat.id,
-					targetLanguage: schema.chat.targetLanguage,
-					message: {
-						id: schema.message.id,
-						content: schema.message.content,
-						role: schema.message.role,
-						status: schema.message.status
-					},
-					messageRewrite: {
-						id: schema.messageRewrite.id,
-						text: schema.messageRewrite.text,
-						reason: schema.messageRewrite.reason,
-						index: schema.messageRewrite.index
-					}
-				})
-				.from(schema.chat)
-				.innerJoin(schema.message, eq(schema.chat.id, schema.message.chatId))
-				.leftJoin(schema.messageRewrite, eq(schema.message.id, schema.messageRewrite.messageId))
-				.where(and(eq(schema.chat.userId, signedInUser.id), eq(schema.chat.kind, 'one_shot')))
-				.orderBy(schema.chat.id),
-			({ id }) => id
-		),
-		([_, records]) => {
-			const firstRecord = records.at(0);
+	const chats = await db
+		.select({ id: schema.chat.id, title: schema.chat.title })
+		.from(schema.chat)
+		.where(and(eq(schema.chat.userId, signedInUser.id), eq(schema.chat.kind, 'one_shot')));
 
-			// This should never happen, but just in case, throw an error.
-			if (!firstRecord) throw new Error('No record found');
+	const presets = await db
+		.select({
+			id: schema.conversationPreset.id,
+			slug: schema.conversationPreset.slug,
+			origin: schema.conversationPreset.origin,
+			kind: schema.conversationPreset.kind,
+			name: schema.conversationPreset.name,
+			briefing: schema.conversationPreset.briefing,
+			context: schema.conversationPreset.context,
+			authorId: schema.conversationPreset.authorId
+		})
+		.from(schema.conversationPreset);
 
-			if (firstRecord.message.role !== 'user') throw new Error('Unexpected message role');
-
-			const rewrites = records
-				.reduce((accumulator, { messageRewrite }) => {
-					if (messageRewrite === null) return accumulator;
-					accumulator.push({
-						index: messageRewrite.index,
-						reason: messageRewrite.reason,
-						sentence: messageRewrite.text
-					});
-					return accumulator;
-				}, new Array<{ index: number; reason: string; sentence: string }>())
-				.toSorted((a, b) => a.index - b.index);
-
-			const cells = buildBlame(firstRecord.message.content, rewrites, firstRecord.targetLanguage);
-			const rewriteHistory = traceRewriteHistory(cells, rewrites);
-
-			return {
-				id: firstRecord.id,
-				targetLanguage: firstRecord.targetLanguage,
-				message: {
-					id: firstRecord.message.id,
-					content: firstRecord.message.content,
-					status: firstRecord.message.status,
-					rewriteHistory
-				}
-			};
-		}
-	);
-
-	return { chats };
+	return { chats, presets };
 };
 
 export const actions = {
@@ -113,10 +70,7 @@ export const actions = {
 			.object({
 				intent: z
 					.string()
-					.transform((intent) => {
-						const normalized = normalizeText(intent);
-						return normalized.length > 0 ? normalized : undefined;
-					})
+					.transform((intent) => optionalIntent(intent))
 					.optional(),
 				content: z
 					.string()
@@ -127,12 +81,22 @@ export const actions = {
 					.enum(LANGUAGE_CODES)
 					.refine((code) => code !== signedInUser.nativeLanguage, {
 						error: 'You cannot chat in your native language'
-					})
+					}),
+				version: z.literal(1),
+				context: contextSchema
 			})
 			.safeParse({
 				intent: formData.get('intent')?.toString() ?? undefined,
 				content: formData.get('content')?.toString() ?? '',
-				targetLanguage: formData.get('target_language')?.toString() ?? ''
+				targetLanguage: formData.get('target_language')?.toString() ?? '',
+				version: parseInt(formData.get('version')?.toString() ?? '-1'),
+				context: {
+					you: formData.get('you')?.toString() ?? '',
+					partner: formData.get('partner')?.toString() ?? '',
+					shared: formData.get('shared')?.toString() ?? '',
+					private: formData.get('private')?.toString() ?? '',
+					want: formData.get('want')?.toString() ?? ''
+				}
 			});
 
 		if (!formDataParse.success) {
@@ -140,19 +104,6 @@ export const actions = {
 				error: { code: 'invalid_input' },
 				status: 400
 			});
-		}
-
-		const oneShotPreset = (
-			await db
-				.select({ context: schema.conversationPreset.context })
-				.from(schema.conversationPreset)
-				.where(eq(schema.conversationPreset.slug, 'one_shot'))
-				.limit(1)
-		).at(0);
-
-		if (!oneShotPreset || oneShotPreset.context.version !== 1) {
-			console.error('Missing one-shot preset.');
-			return correctOneShotResponders.fail({ error: { code: 'unexpected' }, status: 500 });
 		}
 
 		const { chat, message } = await db.transaction(async (tx) => {
@@ -164,7 +115,7 @@ export const actions = {
 						kind: 'one_shot',
 						targetLanguage: formDataParse.data.targetLanguage,
 						title: formDataParse.data.content.slice(0, 64),
-						payload: oneShotPreset.context
+						payload: { version: formDataParse.data.version, payload: formDataParse.data.context }
 					})
 					.returning({ id: schema.chat.id })
 			).at(0);
@@ -200,38 +151,31 @@ export const actions = {
 			return correctOneShotResponders.fail({ error: { code: 'unexpected' }, status: 500 });
 		}
 
-		return correctOneShotResponders.ok({ data: null });
+		return redirect(303, `/one-shots/${chat.id}`);
 	},
-	retryCorrection: async ({ locals, request }) => {
+	deleteChat: async ({ request, locals }) => {
 		const signedInUser = requireUserSession(locals);
 		if (!signedInUser) return redirect(303, '/login');
 
 		const formData = await request.formData();
 		const formDataParse = z
-			.object({ chatId: z.coerce.number().positive(), messageId: z.coerce.number().positive() })
-			.safeParse({
-				chatId: formData.get('chat_id')?.toString(),
-				messageId: formData.get('message_id')?.toString()
-			});
+			.object({ chatId: z.coerce.number().positive() })
+			.safeParse({ chatId: formData.get('chat_id')?.toString() });
 
 		if (!formDataParse.success) {
-			return retryOneShotCorrectionResponders.fail({
-				error: { code: 'invalid_input' },
-				status: 400
-			});
+			return deleteChatResponders.fail({ error: { code: 'invalid_input' }, status: 400 });
 		}
 
-		try {
-			await retryCorrection({
-				userId: signedInUser.id,
-				chatId: formDataParse.data.chatId,
-				userMessageId: formDataParse.data.messageId
-			});
-		} catch (error) {
-			console.error(error);
-			return retryOneShotCorrectionResponders.fail({ error: { code: 'unexpected' }, status: 500 });
-		}
+		await db
+			.delete(schema.chat)
+			.where(
+				and(
+					eq(schema.chat.id, formDataParse.data.chatId),
+					eq(schema.chat.userId, signedInUser.id),
+					eq(schema.chat.kind, 'one_shot')
+				)
+			);
 
-		return retryOneShotCorrectionResponders.ok({ data: null });
+		return deleteChatResponders.ok({ data: null });
 	}
 } satisfies Actions;

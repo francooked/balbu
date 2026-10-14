@@ -21,7 +21,7 @@ const CONTEXT_TURNS = 9;
 
 /** Few-shot scene for a free chat. The catalog preset lives in the database. */
 const practiceContext = {
-	you: 'Eres un aprendiz. Hablas como tú mismo.',
+	you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.',
 	partner:
 		'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.',
 	shared:

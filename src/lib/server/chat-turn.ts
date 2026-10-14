@@ -233,6 +233,19 @@ async function classifyCorrectionSteps({
 	});
 }
 
+/** Register and situation the corrector reads. The partner's lines stay out. */
+function correctionScene(payload: (typeof schema.chat.$inferSelect)['payload']) {
+	const scene = chatPayloadSchema.parse(payload);
+	if (scene.version !== 1) {
+		throw new ChatTurnError('unsupported_chat_payload_version');
+	}
+	return {
+		you: scene.payload.you,
+		shared: scene.payload.shared,
+		want: scene.payload.want
+	};
+}
+
 async function correctUserMessage({
 	chat,
 	messages,
@@ -255,6 +268,8 @@ async function correctUserMessage({
 	// Another task has already claimed this message.
 	if (!claimed) return;
 
+	const scene = correctionScene(chat.payload);
+
 	const llmResponse = await retry({
 		fn: async () => {
 			const chatCompletion = await openai.chat.completions.create({
@@ -262,6 +277,7 @@ async function correctUserMessage({
 					nativeLanguage: chat.nativeLanguage,
 					targetLanguage: chat.targetLanguage,
 					intent: userMessage.intent ?? undefined,
+					scene,
 					turns: messages
 						.filter((message) => message.id <= userMessage.id)
 						.map(({ role, content }) => ({ role, content }))
@@ -463,7 +479,8 @@ export async function processOneShot({
 
 	const userMessage = messages.find(({ id, role }) => id === userMessageId && role === 'user');
 
-	if (!userMessage || messages.length !== 1) {
+	// The context is the chat's. Later messages stay in it, so every turn is the user.
+	if (!userMessage || messages.some((message) => message.role !== 'user')) {
 		throw new ChatTurnError('messages_not_found');
 	}
 

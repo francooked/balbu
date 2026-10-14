@@ -1,137 +1,236 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { resolve } from '$app/paths';
 	import { LANGUAGE_CODE_LABELS, LANGUAGE_CODES } from '$lib/constants';
+	import { createFormView } from '$lib/forms/create-form-view.svelte';
 	import {
 		CORRECT_ONE_SHOT_ID,
 		correctOneShotFailure,
 		correctOneShotSuccess
 	} from '$lib/forms/correct-one-shot';
-	import { createFormView } from '$lib/forms/create-form-view.svelte';
-	import { Popover } from 'melt/builders';
+	import { DELETE_CHAT_ID, deleteChatFailure, deleteChatSuccess } from '$lib/forms/delete-chat';
 	import type { PageProps } from './$types';
-	import { mergeAttrs } from 'melt';
-	import {
-		RETRY_ONE_SHOT_CORRECTION_ID,
-		retryOneShotCorrectionFailure,
-		retryOneShotCorrectionSuccess
-	} from '$lib/forms/retry-one-shot-correction';
 
-	const { data, form }: PageProps = $props();
+	const FIELDS = [
+		['you', 'Quién eres'],
+		['partner', 'Quién es el otro'],
+		['shared', 'Qué está pasando'],
+		['private', 'Qué sabe el otro y tú no'],
+		['want', 'Qué quieres']
+	] as const;
 
-	const correctOneShot = createFormView({
+	const PLACEHOLDERS: Record<(typeof FIELDS)[number][0], string> = {
+		you: 'Escribes el mensaje de un commit. Hablas técnico y semi-formal, en una línea y en imperativo.',
+		partner: 'Nadie contesta. Lo lee quien revisa el historial del repositorio.',
+		shared: 'Es un repositorio de software. No hay conversación.',
+		private: 'No hay información que el autor desconozca.',
+		want: 'Decir qué cambió el commit.'
+	};
+
+	type ContextFields = Record<(typeof FIELDS)[number][0], string>;
+
+	type Scene = ContextFields & {
+		id: number;
+		slug: string | null;
+		name: string;
+		briefing: string;
+	};
+
+	type Choice = ContextFields & {
+		name: string;
+		briefing: string;
+	};
+
+	let { data, form }: PageProps = $props();
+
+	let correctOneShot = createFormView({
 		id: CORRECT_ONE_SHOT_ID,
 		success: correctOneShotSuccess,
 		failure: correctOneShotFailure,
 		getForm: () => form
 	});
 
-	let retryOneShotCorrection = createFormView({
-		id: RETRY_ONE_SHOT_CORRECTION_ID,
-		success: retryOneShotCorrectionSuccess,
-		failure: retryOneShotCorrectionFailure,
+	let deleteChat = createFormView({
+		id: DELETE_CHAT_ID,
+		success: deleteChatSuccess,
+		failure: deleteChatFailure,
 		getForm: () => form
 	});
 
-	const popover = new Popover();
-	let triggerData = $state<{ reason: string } | null>();
+	const scenes = $derived(listScenes(data.presets));
+	const presetChoice = $derived(startingChoice(data.presets));
+
+	let chosen = $state<Choice | null>(null);
+	const committed = $derived(chosen ?? presetChoice);
+	let dialogEl: HTMLDialogElement | undefined;
+	let step = $state<'pick' | 'edit'>('pick');
+	let query = $state('');
+	let picked = $state<number | 'custom' | null>(null);
+	let filledFrom = $state<number | 'custom' | null>(null);
+	let base = $state<Scene | null>(null);
+	let draft = $state<ContextFields>(emptyFields());
+
+	const matches = $derived.by(() => {
+		const q = query.trim().toLowerCase();
+		if (!q) return scenes;
+		return scenes.filter(
+			(scene) => scene.name.toLowerCase().includes(q) || scene.briefing.toLowerCase().includes(q)
+		);
+	});
+
+	const draftReady = $derived(FIELDS.every(([key]) => draft[key].trim().length > 0));
+
+	/** Presets a new correction can copy. The isolated message stays first. */
+	function listScenes(presets: typeof data.presets): Scene[] {
+		return presets
+			.flatMap((preset) => {
+				if (preset.context.version !== 1) return [];
+				return [
+					{
+						id: preset.id,
+						slug: preset.slug,
+						name: preset.name,
+						briefing: preset.briefing,
+						you: preset.context.payload.you,
+						partner: preset.context.payload.partner,
+						shared: preset.context.payload.shared,
+						private: preset.context.payload.private,
+						want: preset.context.payload.want
+					}
+				];
+			})
+			.sort((a, b) => rank(a.slug) - rank(b.slug) || a.id - b.id);
+	}
+
+	function rank(slug: string | null) {
+		if (slug === 'one_shot') return 0;
+		if (slug === 'commit') return 1;
+		return 2;
+	}
+
+	function emptyFields(): ContextFields {
+		return { you: '', partner: '', shared: '', private: '', want: '' };
+	}
+
+	function copyFields(fields: ContextFields): ContextFields {
+		return {
+			you: fields.you,
+			partner: fields.partner,
+			shared: fields.shared,
+			private: fields.private,
+			want: fields.want
+		};
+	}
+
+	function startingChoice(presets: typeof data.presets): Choice {
+		const available = listScenes(presets);
+		const isolated = presets.find((preset) => preset.slug === 'one_shot');
+		const scene = available.find((item) => item.id === isolated?.id) ?? available[0];
+		if (!scene) return { name: 'Personalizado', briefing: '', ...emptyFields() };
+		return {
+			name: scene.name,
+			briefing: scene.briefing,
+			...copyFields(scene)
+		};
+	}
+
+	function sameFields(left: ContextFields, right: ContextFields) {
+		return FIELDS.every(([key]) => left[key] === right[key]);
+	}
+
+	function rememberDialog(node: HTMLDialogElement) {
+		dialogEl = node;
+	}
+
+	function openDialog() {
+		step = 'pick';
+		query = '';
+		const current = scenes.find((scene) => sameFields(committed, scene));
+		if (current) {
+			picked = current.id;
+			filledFrom = null;
+			base = null;
+		} else {
+			picked = 'custom';
+			filledFrom = 'custom';
+			base = null;
+			draft = copyFields(committed);
+		}
+		dialogEl?.showModal();
+	}
+
+	function closeDialog() {
+		dialogEl?.close();
+	}
+
+	function continueStep() {
+		if (step === 'pick') {
+			if (picked === null) return;
+			if (picked !== filledFrom) {
+				base = picked === 'custom' ? null : (scenes.find((scene) => scene.id === picked) ?? null);
+				draft = base ? copyFields(base) : emptyFields();
+				filledFrom = picked;
+			}
+			step = 'edit';
+			return;
+		}
+
+		const values = copyFields(draft);
+		for (const [key] of FIELDS) values[key] = values[key].trim();
+		if (!FIELDS.every(([key]) => values[key])) return;
+
+		chosen =
+			base && sameFields(values, base)
+				? { name: base.name, briefing: base.briefing, ...values }
+				: { name: 'Personalizado', briefing: values.shared, ...values };
+		closeDialog();
+	}
 </script>
 
 <h1>Correcciones rápidas</h1>
 
-<div class="thread">
-	{#each data.chats as chat (chat.id)}
-		<div class="shot">
-			<p class="who">{LANGUAGE_CODE_LABELS.es[chat.targetLanguage]}</p>
+{#if deleteChat.view.status === 'failure'}
+	<p>Error al eliminar</p>
+{/if}
 
-			<p>
-				{#if chat.message.status === 'complete'}
-					{#each chat.message.rewriteHistory as change, index (index)}
-						{#if change.kind === 'removed'}
-							{#if change.text.trim() === ''}
-								<span>{change.text}</span>
-							{:else}
-								<button
-									type="button"
-									class="corr-rm"
-									{...mergeAttrs(popover.trigger, {
-										onclick: () => (triggerData = { reason: change.reason })
-									})}
-								>
-									{change.text}
-								</button>
-								<!--
-								Add a space after a removed chunk if the next difference also starts with a word/number character,
-								so that deleted tokens don't merge with new/untouched ones visually.
-								-->
-								{#if /[\p{L}\p{N}]+/gu.test(chat.message.rewriteHistory.at(index + 1)?.text ?? '')}
-									<span>{' '}</span>
-								{/if}
-							{/if}
-						{:else if change.kind === 'added'}
-							{#if change.text.trim() === ''}
-								<span>{change.text}</span>
-							{:else}
-								<button
-									type="button"
-									class="corr-add"
-									{...mergeAttrs(popover.trigger, {
-										onclick: () => (triggerData = { reason: change.reason })
-									})}
-								>
-									{change.text}
-								</button>
-							{/if}
-						{:else}
-							<span>{change.text}</span>
-						{/if}
-					{:else}
-						<span>{chat.message.content}</span>
-					{/each}
-				{:else}
-					<span>{chat.message.content}</span>
-				{/if}
-			</p>
-
-			{#if chat.message.status === 'correcting' || chat.message.status === 'pending'}
-				<p class="note">Generando corrección…</p>
-			{:else if chat.message.status === 'failed'}
-				<form
-					class="retry"
-					method="post"
-					action="?/retryCorrection"
-					use:enhance={retryOneShotCorrection.enhance}
-				>
-					{#if retryOneShotCorrection.view.status === 'pending'}
-						Generando corrección…
-					{:else}
-						<span>No se pudo generar la corrección.</span>
-						<button type="submit">Reintentar</button>
-					{/if}
-					<input type="hidden" name="chat_id" value={chat.id} />
-					<input type="hidden" name="message_id" value={chat.message.id} />
-				</form>
-			{/if}
-		</div>
-	{:else}
-		<p class="empty">Todavía no has corregido ninguna oración.</p>
-	{/each}
-</div>
-
-<div
-	{...mergeAttrs(popover.content, {
-		class: triggerData ? 'reason visible' : 'reason'
-	})}
->
-	{#if triggerData}
-		Corrección: {triggerData.reason}
-	{/if}
-</div>
+{#each data.chats as chat (chat.id)}
+	<div class="row">
+		<a href={resolve('/(authenticated)/one-shots/[id]', { id: String(chat.id) })} title={chat.title}
+			>{chat.title}</a
+		>
+		<form method="post" action="?/deleteChat" use:enhance={deleteChat.enhance}>
+			<button type="submit" disabled={deleteChat.view.status === 'pending'}>
+				{deleteChat.view.status === 'pending' ? 'Cargando' : 'Eliminar'}
+			</button>
+			<input type="hidden" name="chat_id" value={chat.id} />
+		</form>
+	</div>
+{:else}
+	<p class="empty">Todavía no has corregido ninguna oración.</p>
+{/each}
 
 <form method="post" action="?/correct" class="composer" use:enhance={correctOneShot.enhance}>
 	{#if correctOneShot.view.status === 'failure'}
 		<p>Error al enviar</p>
 	{/if}
 	<h2>Nueva corrección</h2>
+	<div class="context">
+		<label for="context_edit">Contexto</label>
+		<div class="context-head">
+			<p>{committed.name}</p>
+			<button id="context_edit" type="button" onclick={openDialog}>Editar</button>
+		</div>
+		{#if committed.briefing}
+			<p class="briefing">{committed.briefing}</p>
+		{/if}
+		<p class="hint">Se usa en todo el hilo. Para otro contexto, crea otra corrección.</p>
+	</div>
+	<input type="hidden" name="version" value="1" />
+	<input type="hidden" name="you" value={committed.you} />
+	<input type="hidden" name="partner" value={committed.partner} />
+	<input type="hidden" name="shared" value={committed.shared} />
+	<input type="hidden" name="private" value={committed.private} />
+	<input type="hidden" name="want" value={committed.want} />
 	<label for="one_shot_intent">Intención</label>
 	<textarea id="one_shot_intent" name="intent" placeholder="¿Qué quieres expresar?"></textarea>
 	<label for="one_shot_content">Texto</label>
@@ -154,106 +253,148 @@
 	</div>
 </form>
 
-<style>
-	.thread {
-		margin-bottom: 1.5rem;
-	}
+<dialog {@attach rememberDialog} aria-labelledby="context-dialog-title">
+	<p class="step">Paso {step === 'pick' ? 1 : 2} de 2</p>
+	<h2 id="context-dialog-title">
+		{step === 'pick' ? 'Elige un contexto' : 'Revisa las variables'}
+	</h2>
 
-	.shot {
+	{#if step === 'pick'}
+		<label for="context_query">Buscar</label>
+		<input id="context_query" type="search" placeholder="Commit, hotel, café…" bind:value={query} />
+		<div class="results">
+			{#each matches as scene (scene.id)}
+				<button
+					type="button"
+					class="result"
+					aria-pressed={picked === scene.id}
+					onclick={() => (picked = scene.id)}
+				>
+					<strong>{scene.name}</strong>
+					<span>{scene.briefing}</span>
+				</button>
+			{:else}
+				<p class="hint">Ningún contexto coincide.</p>
+			{/each}
+		</div>
+		<p class="or">o bien</p>
+		<button
+			type="button"
+			class="custom"
+			aria-pressed={picked === 'custom'}
+			onclick={() => (picked = 'custom')}
+		>
+			<strong>Personalizado</strong>
+			<span>Empiezas con las variables vacías y las escribes tú.</span>
+		</button>
+	{:else}
+		<p class="hint">El registro va en «Quién eres». Si está bien, confirma.</p>
+		<div class="fields">
+			{#each FIELDS as [key, label] (key)}
+				<label for="context_{key}">{label}</label>
+				<textarea id="context_{key}" placeholder={PLACEHOLDERS[key]} bind:value={draft[key]}
+				></textarea>
+			{/each}
+		</div>
+	{/if}
+
+	<div class="dialog-actions">
+		{#if step === 'edit'}
+			<button type="button" class="back" onclick={() => (step = 'pick')}>Atrás</button>
+		{/if}
+		<button type="button" onclick={closeDialog}>Cancelar</button>
+		<button
+			type="button"
+			class="solid"
+			disabled={step === 'pick' ? picked === null : !draftReady}
+			onclick={continueStep}
+		>
+			{step === 'edit' ? 'Confirmar' : 'Continuar'}
+		</button>
+	</div>
+</dialog>
+
+<style>
+	.row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
 		padding: 0.9rem 0;
 		border-bottom: 1px solid var(--wash);
 	}
 
-	.shot:first-child {
-		padding-top: 0;
+	.row a {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
-	.shot:last-child {
-		border-bottom: 0;
-	}
-
-	.shot p {
-		margin: 0;
-	}
-
-	.shot .note,
-	.shot .retry {
-		margin-top: 0.3rem;
-	}
-
-	.who {
-		font-size: 0.7rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--muted);
-		margin: 0 0 0.3rem;
-		font-weight: 600;
-	}
-
-	.note,
-	.retry {
-		margin: 0.3rem 0 0;
-		font-size: 0.85rem;
-		color: var(--muted);
-	}
-
-	.retry button {
+	.row button {
 		background: none;
 		color: var(--muted);
 		border: none;
 		padding: 0;
-		font: inherit;
 		text-decoration: underline;
 		text-underline-offset: 0.18em;
+		flex-shrink: 0;
 	}
 
-	.retry button:hover:not(:disabled) {
+	.row button:hover:not(:disabled) {
 		color: var(--ink);
 		background: none;
 	}
 
-	.corr-rm,
-	.corr-add {
-		font: inherit;
-		padding: 0;
-		background: none;
-		border: none;
-		cursor: pointer;
-	}
-
-	.corr-rm {
-		text-decoration: line-through;
-		color: var(--muted);
-		text-decoration-thickness: 1px;
-		box-shadow: inset 0 -1px 0 var(--line);
-	}
-
-	.corr-add {
-		font-weight: 600;
-		text-decoration: none;
-		box-shadow: inset 0 -1px 0 var(--ink);
-	}
-
-	.reason.visible {
-		padding: 0.65rem 0.8rem;
-		background: var(--wash);
-		font-size: 0.85rem;
-		max-width: 18rem;
-	}
-
 	.empty {
 		color: var(--muted);
-		padding: 0.25rem 0;
+		padding: 1.5rem 0;
 	}
 
 	.composer {
-		margin-top: 0.5rem;
-		padding-top: 1.15rem;
+		margin-top: 2rem;
+		padding-top: 0.35rem;
 		border-top: 1px solid var(--line);
 	}
 
 	.composer h2 {
-		margin-top: 0;
+		margin-top: 0.85rem;
+	}
+
+	.context {
+		margin: 0 0 1rem;
+	}
+
+	.context-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+
+	.context p {
+		margin: 0;
+	}
+
+	.briefing {
+		margin-top: 0.35rem;
+		color: var(--muted);
+	}
+
+	.context button {
+		flex-shrink: 0;
+		color: var(--muted);
+	}
+
+	.context button:hover {
+		color: var(--ink);
+	}
+
+	.hint {
+		margin: 0.35rem 0 0;
+		color: var(--muted);
+		font-size: 0.85rem;
 	}
 
 	.composer-row {
@@ -273,5 +414,117 @@
 	.composer-row button {
 		flex-shrink: 0;
 		margin-bottom: 0.15rem;
+	}
+
+	dialog {
+		width: min(36rem, calc(100vw - 2rem));
+		height: fit-content;
+		max-height: calc(100vh - 2rem);
+		margin: auto;
+		overflow: auto;
+		border: 1px solid var(--line);
+		padding: 1.1rem 1.15rem 1rem;
+		color: var(--ink);
+	}
+
+	dialog::backdrop {
+		background: rgb(0 0 0 / 25%);
+	}
+
+	.step {
+		margin: 0;
+		color: var(--muted);
+		font-size: 0.8125rem;
+	}
+
+	dialog h2 {
+		margin-top: 0.35rem;
+	}
+
+	.results {
+		max-height: 16rem;
+		overflow: auto;
+	}
+
+	button.result,
+	button.custom {
+		display: block;
+		width: 100%;
+		padding: 0.55rem 0;
+		text-align: left;
+		text-decoration: none;
+		border-bottom: 1px solid var(--wash);
+		background: none;
+	}
+
+	button.result strong,
+	button.custom strong {
+		display: block;
+		font-weight: 650;
+	}
+
+	button.result span,
+	button.custom span {
+		display: block;
+		margin-top: 0.15rem;
+		color: var(--muted);
+		font-weight: 400;
+	}
+
+	button.result[aria-pressed='true'],
+	button.custom[aria-pressed='true'] {
+		background: var(--wash);
+	}
+
+	.or {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+		margin: 0.85rem 0;
+		color: var(--muted);
+		font-size: 0.8125rem;
+	}
+
+	.or::before,
+	.or::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--line);
+	}
+
+	button.custom {
+		border-bottom: 0;
+	}
+
+	dialog .hint {
+		margin: 0 0 0.75rem;
+	}
+
+	.fields textarea {
+		min-height: 3.2rem;
+	}
+
+	.dialog-actions {
+		display: flex;
+		justify-content: flex-end;
+		gap: 0.85rem;
+		margin-top: 1rem;
+	}
+
+	.dialog-actions .back {
+		margin-right: auto;
+	}
+
+	button.solid {
+		text-decoration: none;
+		padding: 0.45rem 0.9rem;
+		border: 1px solid var(--ink);
+		background: var(--ink);
+		color: #fff;
+	}
+
+	button.solid:hover:not(:disabled) {
+		background: #000;
 	}
 </style>

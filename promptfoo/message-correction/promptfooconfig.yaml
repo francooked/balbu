@@ -25,6 +25,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Quiero practicar para mi viaje
@@ -40,6 +44,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Quiero practicar para mi viaje
@@ -55,6 +63,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Quiero practicar para mi viaje
@@ -70,6 +82,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Tengo que trabajar el sábado
@@ -85,6 +101,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: ¿Salimos mañana?
@@ -100,6 +120,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Estoy pensando en ir al sur
@@ -115,6 +139,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Llegué tarde a la reunión
@@ -130,6 +158,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Perdón por la demora
@@ -145,6 +177,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: por mí, lo que sea
@@ -156,6 +192,10 @@ tests:
     vars:
       nativeLanguage: es
       targetLanguage: en
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: I had a rough week
@@ -171,6 +211,10 @@ tests:
     vars:
       nativeLanguage: es
       targetLanguage: en
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Should we meet at six or seven?
@@ -186,6 +230,10 @@ tests:
     vars:
       nativeLanguage: es
       targetLanguage: en
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: i ended up staying home all weekend
@@ -198,6 +246,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Quiero contarte de mi fin de semana
@@ -213,6 +265,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: ¿Cómo está tu amiga?
@@ -228,6 +284,10 @@ tests:
     vars:
       nativeLanguage: es
       targetLanguage: en
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Do you like animals?
@@ -243,6 +303,10 @@ tests:
     vars:
       nativeLanguage: es
       targetLanguage: en
+      scene:
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
+        want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
       turns:
         - role: user
           content: Hi, I want to talk about last weekend
@@ -260,6 +324,10 @@ tests:
       nativeLanguage: en
       targetLanguage: es
       intent: I want to say I support your decision to change jobs
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: Soporto tu decisión de cambiar de trabajo
@@ -272,6 +340,10 @@ tests:
     vars:
       nativeLanguage: en
       targetLanguage: es
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: Soporto tu decisión de cambiar de trabajo
@@ -285,6 +357,10 @@ tests:
       targetLanguage: es
       intent: I want to ask my coworker if she can send me the report before Friday, because the
         client has been waiting for it all week
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: ¿Me puedes mandar el reporte antes del viernes?
@@ -297,6 +373,10 @@ tests:
       nativeLanguage: es
       targetLanguage: en
       intent: Quiero avisar que estoy resfriado y que no iré a la oficina
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: I am constipated and I will not go to the office
@@ -310,6 +390,10 @@ tests:
       targetLanguage: en
       intent: Quiero decirle a mi equipo que terminé la tarea y que subí los cambios al repositorio,
         y que pueden revisarlos cuando quieran
+      scene:
+        you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.'
+        shared: 'No hay lugar ni trama. Es un mensaje aislado.'
+        want: 'Decir lo que el mensaje ya intenta decir.'
       turns:
         - role: user
           content: i finished the task and pushed the changes

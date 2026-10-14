@@ -8,11 +8,12 @@ const CONVERSATION_PRESETS = [
 		origin: 'system',
 		kind: 'conversation',
 		name: 'Práctica libre',
-		briefing: 'Hablas como tú mismo. No hay lugar ni una meta que cierre la conversación.',
+		briefing:
+			'Te expresas como tú mismo, en el tono que elijas. No hay lugar ni una meta que cierre la conversación.',
 		context: {
 			version: 1,
 			payload: {
-				you: 'Eres un aprendiz. Hablas como tú mismo.',
+				you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.',
 				partner:
 					'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.',
 				shared:
@@ -32,12 +33,29 @@ const CONVERSATION_PRESETS = [
 		context: {
 			version: 1,
 			payload: {
-				you: 'Escribes un mensaje suelto, sin una conversación delante.',
+				you: 'Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.',
 				partner:
 					'Nadie contesta. El texto lo lee quien el mensaje indique. Si no indica a nadie, lo lee un lector general.',
 				shared: 'No hay lugar ni trama. Es un mensaje aislado.',
 				private: 'No hay información que el autor desconozca.',
 				want: 'Decir lo que el mensaje ya intenta decir.'
+			}
+		}
+	},
+	{
+		slug: 'commit',
+		origin: 'system',
+		kind: 'one_shot',
+		name: 'Mensaje de commit',
+		briefing: 'Escribes el mensaje de un commit. Lo lee quien revisa el historial.',
+		context: {
+			version: 1,
+			payload: {
+				you: 'Escribes el mensaje de un commit. Hablas técnico y semi-formal, en una línea y en imperativo.',
+				partner: 'Nadie contesta. Lo lee quien revisa el historial del repositorio.',
+				shared: 'Es un repositorio de software. No hay conversación.',
+				private: 'No hay información que el autor desconozca.',
+				want: 'Decir qué cambió el commit.'
 			}
 		}
 	},

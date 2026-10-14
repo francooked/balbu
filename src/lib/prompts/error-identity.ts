@@ -326,6 +326,7 @@ const buildSystemPrompt = ({ nativeLanguage, targetLanguage }: LanguagePair): st
 		Al crear:
 		- appliesWhen: una oración en español. Nombra el hueco, no los sustantivos de esta frase. La pieza ancla va en lema, con "cualquier forma" si las conjugaciones son el mismo hábito. Incluye el gobernador cuando dos piezas parecidas son hábitos distintos ("want" entra, "need" no). Cita entre comillas la pieza de ${target}.
 		- Si la única redacción es una categoría suelta ("artículos", "tiempos", "preposiciones"), está ancha: nombra la pieza de este step.
+		- Si el error solo existe por la situación (un commit, una reunión, un mail), appliesWhen nombra esa situación. No lo conviertas en un hábito de cualquier frase.
 		- label: lo que ve el usuario, en ${native}, máximo 12 palabras. El hábito, no el nombre de la regla. Mal: "infinitive complement". Bien: el hueco, con la palabra de ${target} entre comillas.
 
 		Dos steps de este mensaje que son el mismo hueco comparten una sola entrada de created y el mismo createdIndex. Dos huecos distintos son dos entradas.

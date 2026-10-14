@@ -34,7 +34,7 @@ tests:
       nativeLanguage: en
       targetLanguage: es
       context:
-        you: Eres un aprendiz. Hablas como tú mismo.
+        you: Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.
         partner: Eres un compañero de práctica. Siempre respondes y cierras con una pregunta.
         shared: No hay lugar ni trama.
         private: No tienes información que el aprendiz desconozca.

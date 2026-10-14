@@ -31,6 +31,10 @@ tests:
   - vars:
       nativeLanguage: es
       targetLanguage: en
+      scene:
+        you: Escribes un mensaje suelto, sin una conversación delante. Te expresas como tú mismo, en el tono que elijas.
+        shared: No hay lugar ni trama. Es un mensaje aislado.
+        want: Decir lo que el mensaje ya intenta decir.
       turns:
         - role: user
           content: Yesterday I go to the store

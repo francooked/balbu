@@ -20,6 +20,14 @@ import {
 // How many turns of context the corrector sees. Only the last user message is corrected.
 const CONTEXT_TURNS = 3;
 
+/** Free practice. The catalog preset says the same: the learner's own tone is the correction's tone. */
+export const practiceScene = {
+	you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.',
+	shared:
+		'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.',
+	want: 'Practicar el idioma. No hay una meta que dé por cerrada la conversación.'
+};
+
 // Forms the target language accepts side by side. Without these the model treats a valid
 // variant as an error, cannot produce a rewrite that differs from the original, and loops.
 const FREE_VARIANTS: Record<LanguageCode, string> = {
@@ -34,13 +42,21 @@ export const inputSchema = z
 		// What the user meant to say, written in their native language. Optional: only some
 		// messages carry it, and it exists to disambiguate the last user message.
 		intent: z.string().trim().min(1).optional(),
+		// Who the user is, where they are, and what they want. The tone lives in `you`.
+		scene: z.object({
+			you: z.string().trim().min(1),
+			shared: z.string().trim().min(1),
+			want: z.string().trim().min(1)
+		}),
 		turns: z.array(z.object({ role: z.enum(['assistant', 'user']), content: z.string() }))
 	})
 	.refine(({ nativeLanguage, targetLanguage, turns }) => {
-		return (
-			nativeLanguage !== targetLanguage &&
-			turns.every(({ role }, index) => (index % 2 === 0 ? role === 'user' : role === 'assistant'))
+		const alternating = turns.every(({ role }, index) =>
+			index % 2 === 0 ? role === 'user' : role === 'assistant'
 		);
+		// A one-shot thread has no partner, so every turn is the user.
+		const onlyUser = turns.length > 0 && turns.every(({ role }) => role === 'user');
+		return nativeLanguage !== targetLanguage && (alternating || onlyUser);
 	});
 
 export const outputSchema = z
@@ -86,6 +102,7 @@ export const buildFewShot = ({
 				writeSentencesIn: languageName(input.targetLanguage),
 				writeReasonsAndTranslationIn: languageName(input.nativeLanguage),
 				...(input.intent ? { intent: input.intent } : {}),
+				scene: input.scene,
 				turns: takeLastTurns(input.turns, CONTEXT_TURNS)
 			})
 		}
@@ -94,7 +111,10 @@ export const buildFewShot = ({
 	return turns;
 };
 
-export const examples: Example[] = [
+const drafted: Array<{
+	input: Omit<Input, 'scene'> & { scene?: Input['scene'] };
+	output: Output;
+}> = [
 	// nativeLanguage: en, targetLanguage: es
 	{
 		input: {
@@ -413,8 +433,50 @@ export const examples: Example[] = [
 			steps: [],
 			translation: 'Estoy cansado, prefiero quedarme en casa esta noche'
 		}
+	},
+	{
+		input: {
+			nativeLanguage: 'es',
+			targetLanguage: 'en',
+			scene: {
+				you: 'Escribes el mensaje de un commit. Hablas técnico y semi-formal, en una línea y en imperativo.',
+				shared: 'Es un repositorio de software. No hay conversación.',
+				want: 'Decir qué cambió el commit.'
+			},
+			turns: [{ role: 'user', content: 'I fixed the login bug' }]
+		},
+		output: {
+			steps: [
+				{
+					sentence: 'Fix the login bug',
+					reason: 'En un mensaje de commit el verbo va en imperativo, no en pasado.'
+				}
+			],
+			translation: 'Arregla el bug del inicio de sesión'
+		}
+	},
+	{
+		input: {
+			nativeLanguage: 'es',
+			targetLanguage: 'en',
+			scene: {
+				you: 'Escribes el mensaje de un commit. Hablas técnico y semi-formal, en una línea y en imperativo.',
+				shared: 'Es un repositorio de software. No hay conversación.',
+				want: 'Decir qué cambió el commit.'
+			},
+			turns: [{ role: 'user', content: 'Fix the login bug' }]
+		},
+		output: {
+			steps: [],
+			translation: 'Arregla el bug del inicio de sesión'
+		}
 	}
 ];
+
+export const examples: Example[] = drafted.map((example) => ({
+	output: example.output,
+	input: { ...example.input, scene: example.input.scene ?? practiceScene }
+}));
 
 const buildSystemPrompt = ({ nativeLanguage, targetLanguage }: LanguagePair): string => {
 	const target = languageName(targetLanguage);
@@ -426,7 +488,7 @@ const buildSystemPrompt = ({ nativeLanguage, targetLanguage }: LanguagePair): st
 		${buildLanguageRules({ nativeLanguage, targetLanguage })}
 
 		Tu primera decisión es si hay algo que corregir.
-		- Si el mensaje no rompe ninguna regla de ${target}, "steps" es una lista vacía y terminaste. Es el caso más común: la mayoría de los mensajes ya están bien.
+		- Si el mensaje no rompe ninguna regla de ${target} ni el tono que describe "you", "steps" es una lista vacía y terminaste. Es el caso más común: la mayoría de los mensajes ya están bien.
 		- Si rompe alguna, "steps" son las reescrituras que la arreglan, cambiando lo mínimo necesario.
 
 		Ante la duda, "steps" va vacío. Corregir algo que ya estaba bien confunde al usuario más que dejar pasar un error.
@@ -436,14 +498,21 @@ const buildSystemPrompt = ({ nativeLanguage, targetLanguage }: LanguagePair): st
 		- Si una palabra o una estructura hace que el mensaje diga otra cosa (un falso amigo, un verbo equivocado), eso SÍ es un error: arréglalo y explica en "reason" qué significa de verdad lo que escribió y qué palabra dice lo que quería, sin mencionar la intención.
 		- Eso vale aunque la palabra exista y la frase sea correcta en ${target}: una frase impecable que dice otra cosa igual falla.
 		- No es un texto para traducir. Nunca copies sus palabras ni agregues datos que estén en la intención pero no en el mensaje.
-		- Que el mensaje diga la intención con otras palabras, más corto, más simple o menos formal, no es un error.
+		- Que el mensaje diga la intención con otras palabras, más corto o más simple, no es un error. El tono lo marca "you": si el mensaje ya suena así, déjalo.
+
+		"scene" siempre viene. Es la situación de este hilo.
+		- "you": quién escribe y en qué tono. La corrección queda en ese tono.
+		- "shared": dónde está y qué está pasando.
+		- "want": qué busca con el mensaje.
+		- Si el mensaje no suena como dice "you", eso sí se corrige, en un paso.
+		- No reescribas la frase entera para que suene más elegante. El paso toca solo lo que no cumple el tono que "you" describe.
 
 		Nada de esto es un error, y con esto "steps" va vacío:
 		- ${target} admite varias formas y el usuario eligió una: ${FREE_VARIANTS[targetLanguage]}. Si la forma que escribió existe, déjala.
 		- Una expresión hecha o coloquial que en ${target} se dice así, aunque palabra por palabra suene raro.
 		- Algo que tú dirías de otra manera. Tu preferencia no es un error.
 		- El punto final, la mayúscula inicial y las comas opcionales: en un chat no se exigen. No los agregues ni los quites.
-		- Un mensaje corto, informal o sin sujeto explícito, si se entiende con los turnos anteriores.
+		- Un mensaje corto o sin sujeto explícito, si se entiende con los turnos anteriores y suena como dice "you".
 
 		Sí corrige lo que cambia la lectura: ¿?, ¡!, tildes que distinguen dos palabras, apóstrofos, y la separación cuando dos ideas independientes quedan pegadas sin coma ni punto. Si separas con punto, la palabra que sigue va con mayúscula; la primera del mensaje no.
 
@@ -467,10 +536,11 @@ const buildSystemPrompt = ({ nativeLanguage, targetLanguage }: LanguagePair): st
 		- Una oración completa en ${native}, entre 6 y 15 palabras, sobre el cambio de ESE paso.
 		- Explica la regla del idioma, no la operación: nunca escribas "cambiar X por Y" ni "corregir X", y nunca uses etiquetas sueltas como "concordancia de plural".
 		- Los términos gramaticales van en ${native}. Lo único que puede estar en ${target} son las palabras citadas entre comillas.
+		- Si el paso existe por el tono que describe "you", nombra esa situación.
 		- Texto plano: sin markdown, sin numeración.
 
 		Límites:
-		- No cambies el significado ni el tono, y no agregues información que el usuario no escribió. La única excepción es una palabra que, según "intent", dice algo distinto de lo que el usuario quería: esa sí se cambia.
+		- No cambies el significado, y no agregues información que el usuario no escribió. Cambia una palabra cuando, según "intent", dice algo distinto de lo que el usuario quería. El tono de la versión final es el que describe "you".
 		- Los mensajes anteriores son solo contexto: nunca los corrijas.
 		- Máximo 5 pasos. Si hay más problemas, junta todos los cosméticos en un solo paso final.
 		- Cada "sentence" está en ${target}. Cada "reason" y la "translation" están en ${native}, sin una sola palabra del otro idioma fuera de comillas.

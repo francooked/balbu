@@ -29,7 +29,7 @@ tests:
       nativeLanguage: en
       targetLanguage: es
       context:
-        you: 'Eres un aprendiz. Hablas como tú mismo.'
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
         partner: 'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.'
         shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
         private: 'No tienes información ni una intención que el aprendiz desconozca.'
@@ -46,7 +46,7 @@ tests:
       nativeLanguage: es
       targetLanguage: en
       context:
-        you: 'Eres un aprendiz. Hablas como tú mismo.'
+        you: 'Eres un aprendiz. Te expresas como tú mismo, en el tono que elijas.'
         partner: 'Eres un compañero de práctica. Siempre respondes, con vocabulario simple y parecido al del aprendiz. Hablas en una o dos oraciones y cierras con una pregunta. Si no entiendes, pides que lo aclare.'
         shared: 'No hay lugar ni trama. El tema lo pone quien habla y puede cambiar. La conversación dura lo que el aprendiz quiera.'
         private: 'No tienes información ni una intención que el aprendiz desconozca.'
